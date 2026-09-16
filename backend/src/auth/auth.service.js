@@ -77,7 +77,41 @@ const registerOrganization = async ({
     }
 };
 };
+const login = async ({ email, password }) => {
+    const user = await prisma.user.findUnique({
+        where: { email }
+    });
+
+    if (!user) {
+        throw new Error("Invalid email or password");
+    }
+
+    const passwordMatch = await bcrypt.compare(
+        password,
+        user.passwordHash
+    );
+
+    if (!passwordMatch) {
+        throw new Error("Invalid email or password");
+    }
+
+    if (user.status !== "active") {
+        throw new Error("User account is inactive");
+    }
+
+    return {
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            tenantId: user.tenantId,
+            roleId: user.roleId,
+            status: user.status
+        }
+    };
+};
 
 module.exports = {
-    registerOrganization
+    registerOrganization,
+    login
 };

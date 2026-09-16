@@ -13,7 +13,11 @@
 //    Return user
 const bcrypt = require("bcrypt");
 const prisma = require("../config/prisma");
-const { generateAccessToken } = require("../utils/jwt");
+const jwt = require("jsonwebtoken");
+const {
+    generateAccessToken,
+    generateRefreshToken
+} = require("../utils/jwt");
 
 const registerOrganization = async ({
     organizationName,
@@ -105,6 +109,12 @@ const login = async ({ email, password }) => {
         roleId: user.roleId
     });
 
+    const refreshToken = generateRefreshToken({
+        userId: user.id,
+        tenantId: user.tenantId,
+        roleId: user.roleId
+    });
+
     return {
         user: {
             id: user.id,
@@ -114,11 +124,50 @@ const login = async ({ email, password }) => {
             roleId: user.roleId,
             status: user.status
         },
-        accessToken
+        accessToken,
+        refreshToken
     };
     };
 
+    const refreshAccessToken = async (refreshToken) => {
+    if (!refreshToken) {
+        throw new Error("Refresh token is required");
+    }
+
+    let decoded;
+
+    try {
+        decoded = jwt.verify(
+            refreshToken,
+            process.env.JWT_REFRESH_SECRET
+        );
+    } catch (error) {
+        throw new Error("Invalid or expired refresh token");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: {
+            id: decoded.userId
+        }
+    });
+
+    if (!user || user.status !== "active") {
+        throw new Error("User account is inactive or not found");
+    }
+
+    const accessToken = generateAccessToken({
+        userId: user.id,
+        tenantId: user.tenantId,
+        roleId: user.roleId
+    });
+
+    return {
+        accessToken
+    };
+};
+
 module.exports = {
     registerOrganization,
-    login
+    login,
+    refreshAccessToken
 };

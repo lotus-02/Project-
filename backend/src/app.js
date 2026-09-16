@@ -3,12 +3,15 @@ const cors = require("cors");
 const helmet = require("helmet");
 
 const authRoutes = require("./auth/auth.routes");
+const projectRoutes = require("./routes/project.routes");
+
 
 const app = express();
 
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
 
 app.get("/api/v1/health", (req, res) => {
     res.status(200).json({
@@ -18,5 +21,6 @@ app.get("/api/v1/health", (req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/projects", projectRoutes);
 
 module.exports = app;

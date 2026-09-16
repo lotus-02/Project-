@@ -48,8 +48,26 @@ const login = async (req, res) => {
         });
     }
 };
+const refreshAccessToken = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
 
+        const result = await authService.refreshAccessToken(refreshToken);
+
+        res.status(200).json({
+            success: true,
+            message: "Access token refreshed successfully",
+            data: result
+        });
+    } catch (error) {
+        res.status(401).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
 module.exports = {
     registerOrganization,
-    login
+    login,
+    refreshAccessToken
 };

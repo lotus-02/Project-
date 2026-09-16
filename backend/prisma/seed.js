@@ -47,29 +47,36 @@ const main = async () => {
         name: "ADMIN"
     }
 });
-
-const createPermission = await prisma.permission.findUnique({
+const projectPermissions = await prisma.permission.findMany({
     where: {
-        name: "project:create"
+        name: {
+            in: [
+                "project:create",
+                "project:read",
+                "project:update",
+                "project:delete"
+            ]
+        }
     }
 });
 
 for (const role of adminRoles) {
-    await prisma.rolePermission.upsert({
-        where: {
-            roleId_permissionId: {
+    for (const permission of projectPermissions) {
+        await prisma.rolePermission.upsert({
+            where: {
+                roleId_permissionId: {
+                    roleId: role.id,
+                    permissionId: permission.id
+                }
+            },
+            update: {},
+            create: {
                 roleId: role.id,
-                permissionId: createPermission.id
+                permissionId: permission.id
             }
-        },
-        update: {},
-        create: {
-            roleId: role.id,
-            permissionId: createPermission.id
-        }
-    });
-}       
-
+        });
+    }
+}
     console.log("Permissions and ADMIN assignments seeded successfully");
 };
 

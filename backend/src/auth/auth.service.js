@@ -13,6 +13,7 @@
 //    Return user
 const bcrypt = require("bcrypt");
 const prisma = require("../config/prisma");
+const { generateAccessToken } = require("../utils/jwt");
 
 const registerOrganization = async ({
     organizationName,
@@ -98,6 +99,11 @@ const login = async ({ email, password }) => {
     if (user.status !== "active") {
         throw new Error("User account is inactive");
     }
+    const accessToken = generateAccessToken({
+        userId: user.id,
+        tenantId: user.tenantId,
+        roleId: user.roleId
+    });
 
     return {
         user: {
@@ -107,9 +113,10 @@ const login = async ({ email, password }) => {
             tenantId: user.tenantId,
             roleId: user.roleId,
             status: user.status
-        }
+        },
+        accessToken
     };
-};
+    };
 
 module.exports = {
     registerOrganization,

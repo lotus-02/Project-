@@ -1,14 +1,22 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Secure Multi-Tenant Project Management Platform Backend API",
+  "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "test": "node --test tests/**/*.test.js",
+    "seed": "node prisma/seed.js",
     "postinstall": "prisma skills sync || exit 0"
   },
-  "keywords": [],
+  "keywords": [
+    "multi-tenant",
+    "project-management",
+    "rbac",
+    "security",
+    "real-time"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -21,9 +29,9 @@
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.10.1",
     "pg": "^8.23.0",
-    "zod": "^4.6.5"
+    "socket.io": "^4.8.1",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",

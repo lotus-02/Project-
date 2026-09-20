@@ -1,16 +1,3 @@
-// Request
-//    ↓
-// Check email
-//    ↓
-// Already exists?
-//    ├── Yes → Error
-//    └── No
-//         ↓
-//    Hash password
-//         ↓
-//    Save user
-//         ↓
-//    Return user
 const bcrypt = require("bcrypt");
 const prisma = require("../config/prisma");
 const jwt = require("jsonwebtoken");
@@ -54,6 +41,17 @@ const registerOrganization = async ({
             }
         });
 
+        // Fetch all permissions and assign to ADMIN role
+        const permissions = await tx.permission.findMany();
+        for (const permission of permissions) {
+            await tx.rolePermission.create({
+                data: {
+                    roleId: role.id,
+                    permissionId: permission.id
+                }
+            });
+        }
+
         const user = await tx.user.create({
             data: {
                 name,
@@ -66,25 +64,54 @@ const registerOrganization = async ({
 
         return {
             tenant,
-            user
+            user,
+            role
         };
     });
 
-    return {
-    tenant: result.tenant,
-    user: {
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
+    const accessToken = generateAccessToken({
+        userId: result.user.id,
         tenantId: result.user.tenantId,
-        roleId: result.user.roleId,
-        status: result.user.status
-    }
+        roleId: result.user.roleId
+    });
+
+    const refreshToken = generateRefreshToken({
+        userId: result.user.id,
+        tenantId: result.user.tenantId,
+        roleId: result.user.roleId
+    });
+
+    return {
+        tenant: result.tenant,
+        user: {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            tenantId: result.user.tenantId,
+            roleId: result.user.roleId,
+            status: result.user.status,
+            role: result.role.name
+        },
+        accessToken,
+        refreshToken
+    };
 };
-};
+
 const login = async ({ email, password }) => {
     const user = await prisma.user.findUnique({
-        where: { email }
+        where: { email },
+        include: {
+            role: {
+                include: {
+                    permissions: {
+                        include: {
+                            permission: true
+                        }
+                    }
+                }
+            },
+            tenant: true
+        }
     });
 
     if (!user) {
@@ -103,6 +130,7 @@ const login = async ({ email, password }) => {
     if (user.status !== "active") {
         throw new Error("User account is inactive");
     }
+
     const accessToken = generateAccessToken({
         userId: user.id,
         tenantId: user.tenantId,
@@ -115,6 +143,8 @@ const login = async ({ email, password }) => {
         roleId: user.roleId
     });
 
+    const permissions = user.role?.permissions?.map(p => p.permission.name) || [];
+
     return {
         user: {
             id: user.id,
@@ -122,25 +152,25 @@ const login = async ({ email, password }) => {
             email: user.email,
             tenantId: user.tenantId,
             roleId: user.roleId,
-            status: user.status
+            role: user.role?.name,
+            status: user.status,
+            tenantName: user.tenant?.name,
+            permissions
         },
         accessToken,
         refreshToken
     };
-    };
+};
 
-    const refreshAccessToken = async (refreshToken) => {
+const refreshAccessToken = async (refreshToken) => {
     if (!refreshToken) {
         throw new Error("Refresh token is required");
     }
 
     let decoded;
-
     try {
-        decoded = jwt.verify(
-            refreshToken,
-            process.env.JWT_REFRESH_SECRET
-        );
+        const secret = process.env.JWT_REFRESH_SECRET || "default_dev_refresh_secret_456!";
+        decoded = jwt.verify(refreshToken, secret);
     } catch (error) {
         throw new Error("Invalid or expired refresh token");
     }
@@ -166,8 +196,48 @@ const login = async ({ email, password }) => {
     };
 };
 
+const getMe = async (userId, tenantId) => {
+    const user = await prisma.user.findFirst({
+        where: {
+            id: userId,
+            tenantId
+        },
+        include: {
+            tenant: true,
+            role: {
+                include: {
+                    permissions: {
+                        include: {
+                            permission: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    const permissions = user.role?.permissions?.map(p => p.permission.name) || [];
+
+    return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        tenantId: user.tenantId,
+        tenantName: user.tenant?.name,
+        roleId: user.roleId,
+        role: user.role?.name,
+        status: user.status,
+        permissions
+    };
+};
+
 module.exports = {
     registerOrganization,
     login,
-    refreshAccessToken
+    refreshAccessToken,
+    getMe
 };

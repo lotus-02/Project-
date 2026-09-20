@@ -1,10 +1,10 @@
 const authService = require("./auth.service");
+const { validateRegisterInput, validateLoginInput } = require("./auth.validator");
 
-const registerOrganization = async (req, res) => {
-    console.log("Content-Type:", req.headers["content-type"]);
-    console.log("Body:", req.body);
-
+const registerOrganization = async (req, res, next) => {
     try {
+        validateRegisterInput(req.body);
+
         const { organizationName, name, email, password } = req.body;
 
         const result = await authService.registerOrganization({
@@ -20,15 +20,14 @@ const registerOrganization = async (req, res) => {
             data: result
         });
     } catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        next(error);
     }
 };
 
-const login = async (req, res) => {
+const login = async (req, res, next) => {
     try {
+        validateLoginInput(req.body);
+
         const { email, password } = req.body;
 
         const result = await authService.login({
@@ -42,13 +41,14 @@ const login = async (req, res) => {
             data: result
         });
     } catch (error) {
-        res.status(400).json({
+        res.status(401).json({
             success: false,
-            message: error.message
+            message: error.message || "Invalid credentials"
         });
     }
 };
-const refreshAccessToken = async (req, res) => {
+
+const refreshAccessToken = async (req, res, next) => {
     try {
         const { refreshToken } = req.body;
 
@@ -66,8 +66,23 @@ const refreshAccessToken = async (req, res) => {
         });
     }
 };
+
+const getMe = async (req, res, next) => {
+    try {
+        const result = await authService.getMe(req.user.userId, req.user.tenantId);
+
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     registerOrganization,
     login,
-    refreshAccessToken
+    refreshAccessToken,
+    getMe
 };

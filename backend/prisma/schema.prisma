@@ -14,52 +14,57 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users    User[]
-  roles    Role[]
-  projects Project[]
+  users         User[]
+  roles         Role[]
+  projects      Project[]
+  tasks         Task[]
+  activities    Activity[]
+  notifications Notification[]
 }
 
 model User {
-  id           String @id @default(uuid())
+  id           String   @id @default(uuid())
   name         String
-  email        String @unique
+  email        String   @unique
   passwordHash String
-  status       String @default("active")
+  status       String   @default("active")
   tenantId     String
   roleId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  role   Role   @relation(fields: [roleId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role           Role            @relation(fields: [roleId], references: [id])
+  projectMembers ProjectMember[]
+  assignedTasks  Task[]          @relation("AssignedTasks")
+  comments       Comment[]
+  activities     Activity[]
+  notifications  Notification[]
 
   @@index([tenantId])
 }
 
 model Role {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
   tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users       User[]
   permissions RolePermission[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model Permission {
-  id          String  @id @default(uuid())
-  name        String  @unique
+  id          String           @id @default(uuid())
+  name        String           @unique
   description String?
-
-  roles RolePermission[]
+  roles       RolePermission[]
 }
 
 model RolePermission {
@@ -73,16 +78,124 @@ model RolePermission {
 }
 
 model Project {
-  id          String  @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
   description String?
-  status      String  @default("active")
+  status      String    @default("active")
+  priority    String    @default("MEDIUM")
+  startDate   DateTime?
+  endDate     DateTime?
   tenantId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members    ProjectMember[]
+  tasks      Task[]
+  mlAnalyses MLAnalysis[]
 
+  @@index([tenantId])
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Task {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  status         String    @default("TODO")
+  priority       String    @default("MEDIUM")
+  dueDate        DateTime?
+  estimatedHours Float?
+  actualHours    Float?
+  projectId      String
+  assigneeId     String?
+  tenantId       String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?     @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([tenantId])
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  taskId    String
+  userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+model Activity {
+  id         String   @id @default(uuid())
+  action     String
+  details    String?
+  entityType String
+  entityId   String
+  userId     String?
+  tenantId   String
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([tenantId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  userId    String
+  tenantId  String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model MLAnalysis {
+  id               String   @id @default(uuid())
+  projectId        String
+  riskScore        Float
+  riskLevel        String
+  delayProbability Float
+  workloadIndex    Float
+  recommendations  String
+  createdAt        DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }

@@ -1,23 +1,26 @@
 require("dotenv").config();
-const express = require("express");
+const http = require("http");
 const app = require("./app");
 const prisma = require("./config/prisma");
+const { initSocket } = require("./socket");
 
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
         await prisma.$connect();
+        console.log("PostgreSQL connected successfully via Prisma");
 
-        console.log("PostgreSQL connected successfully");
+        const server = http.createServer(app);
+        initSocket(server);
+        console.log("Real-Time WebSocket engine initialized");
 
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
         });
     } catch (error) {
-        console.error("Database connection failed:", error.message);
+        console.error("Server initialization failed:", error.message);
         process.exit(1);
-        throw(error);
     }
 };
 

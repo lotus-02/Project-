@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Database files
+.pgdata/
+*.db
+
 # Environment variables / secrets
 .env
 .env.*

@@ -1,0 +1,13 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": [
+    ".pgdata",
+    ".pgdata/**",
+    "*.log",
+    "node_modules/**",
+    "tests/**",
+    "prisma/migrations/**"
+  ],
+  "delay": 1500
+}

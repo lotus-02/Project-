@@ -5,7 +5,7 @@ let socket = null;
 export const initSocket = (token) => {
   if (socket) socket.disconnect();
 
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? 'https://vyuha-backend-rjgb.onrender.com' : 'http://localhost:5000');
   socket = io(SOCKET_URL, {
     auth: { token },
     reconnection: true,

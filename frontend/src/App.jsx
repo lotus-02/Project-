@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { SidebarProvider } from './context/SidebarContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -43,23 +44,25 @@ function ProtectedLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#03040a' }}>
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Navbar />
-        <main className="flex-1 overflow-y-auto" style={{ background: '#03040a' }}>
-          <Routes>
-            <Route path="/"             element={<Dashboard />} />
-            <Route path="/projects"     element={<Projects />} />
-            <Route path="/projects/:id" element={<ProjectDetail />} />
-            <Route path="/tasks"        element={<TasksPage />} />
-            <Route path="/team"         element={<Team />} />
-            <Route path="/analytics"    element={<Analytics />} />
-            <Route path="*"             element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+    <SidebarProvider>
+      <div className="flex h-screen overflow-hidden" style={{ background: '#03040a' }}>
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Navbar />
+          <main className="flex-1 overflow-y-auto" style={{ background: '#03040a' }}>
+            <Routes>
+              <Route path="/"             element={<Dashboard />} />
+              <Route path="/projects"     element={<Projects />} />
+              <Route path="/projects/:id" element={<ProjectDetail />} />
+              <Route path="/tasks"        element={<TasksPage />} />
+              <Route path="/team"         element={<Team />} />
+              <Route path="/analytics"    element={<Analytics />} />
+              <Route path="*"             element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSidebar } from '../context/SidebarContext';
 import {
   Bell,
   ShieldCheck,
@@ -10,6 +11,8 @@ import {
   CheckCircle,
   AlertTriangle,
   ChevronDown,
+  Menu,
+  PanelLeft,
   User as UserIcon
 } from 'lucide-react';
 import api from '../services/api';
@@ -19,6 +22,7 @@ import EmailVerificationModal from './EmailVerificationModal';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { isCollapsed, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -67,8 +71,26 @@ export default function Navbar() {
         className="h-16 sticky top-0 z-30 px-6 flex items-center justify-between border-b border-[#0d2040]"
         style={{ background: 'rgba(8,12,22,0.92)', backdropFilter: 'blur(16px)' }}
       >
-        {/* Left: org + role */}
+        {/* Left: slide toggle + org + role */}
         <div className="flex items-center space-x-3">
+          {/* Mobile slide drawer toggle */}
+          <button
+            onClick={toggleMobileSidebar}
+            className="md:hidden p-2 rounded-lg border border-[#0d2040] text-[#4a6080] hover:text-[#00d4ff] hover:border-[#00d4ff30] hover:bg-[#00d4ff08] transition"
+            title="Toggle navigation drawer"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
+          {/* Desktop slide toggle button */}
+          <button
+            onClick={toggleSidebar}
+            className="hidden md:flex items-center justify-center p-2 rounded-lg border border-[#0d2040] text-[#4a6080] hover:text-[#00d4ff] hover:border-[#00d4ff30] hover:bg-[#00d4ff08] transition"
+            title={isCollapsed ? "Slide expand sidebar (Full menu)" : "Slide collapse sidebar (More screen space)"}
+          >
+            <PanelLeft className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180 text-[#00d4ff]' : ''}`} />
+          </button>
+
           <div
             className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-[#0066ff30] text-[#00d4ff] text-xs font-semibold tracking-wide"
             style={{ background: 'rgba(0,102,255,0.08)' }}

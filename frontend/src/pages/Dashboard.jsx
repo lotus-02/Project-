@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { FolderKanban, CheckSquare, Clock, TrendingUp, Sparkles, Plus, ArrowRight, Activity as ActivityIcon } from 'lucide-react';
+import { useSidebar } from '../context/SidebarContext';
+import { FolderKanban, CheckSquare, Clock, TrendingUp, Sparkles, Plus, ArrowRight, Activity as ActivityIcon, PanelLeft } from 'lucide-react';
 import api from '../services/api';
 import { getSocket } from '../services/socket';
 import CreateProjectModal from '../components/CreateProjectModal';
@@ -13,6 +14,7 @@ const cardBg = { background: '#080c16' };
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { isCollapsed, toggleSidebar } = useSidebar();
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -90,6 +92,15 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={toggleSidebar}
+            className="hidden md:flex items-center space-x-2 px-3.5 py-2 rounded-xl border border-[#0d2040] text-[#8fa3bf] text-xs font-semibold transition hover:border-[#00d4ff30] hover:text-[#00d4ff]"
+            style={{ background: '#0d1220' }}
+            title={isCollapsed ? "Slide expand sidebar" : "Slide collapse sidebar"}
+          >
+            <PanelLeft className={`w-3.5 h-3.5 transition-transform duration-300 ${isCollapsed ? 'rotate-180 text-[#00d4ff]' : ''}`} />
+            <span>{isCollapsed ? 'Expand Slide' : 'Slide View'}</span>
+          </button>
           <button onClick={() => setShowTaskModal(true)}
             className="flex items-center space-x-2 px-4 py-2 rounded-xl border border-[#0d2040] text-[#e8f4ff] text-xs font-semibold transition hover:border-[#00d4ff30] hover:text-[#00d4ff]"
             style={{ background: '#0d1220' }}>

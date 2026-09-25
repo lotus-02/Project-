@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Mail, ArrowRight, Building2, ShieldCheck } from 'lucide-react';
 import api from '../services/api';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 const ROLE_COLORS = {
   ADMIN:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.08)',  border: 'rgba(0,212,255,0.25)' },
@@ -18,6 +19,7 @@ export default function Login() {
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
   const [preview,  setPreview]  = useState(null); // { orgName, role, user, accessToken, refreshToken }
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const { login, setUserFromData } = useAuth();
   const navigate = useNavigate();
@@ -84,9 +86,18 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-[#4a6080] mb-1.5 uppercase tracking-widest">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[10px] font-bold text-[#4a6080] uppercase tracking-widest">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-[10px] font-semibold text-[#00d4ff] hover:underline transition"
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#4a6080]">
                   <Lock className="w-4 h-4" />
@@ -122,6 +133,11 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+      />
     </div>
   );
 }

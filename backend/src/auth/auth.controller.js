@@ -58,10 +58,66 @@ const getMe = async (req, res, next) => {
     }
 };
 
+const verifyEmail = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        const result = await authService.verifyEmail({ email, otp });
+        res.status(200).json({ success: true, message: result.message, data: result.user });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || "Email verification failed" });
+    }
+};
+
+const resendEmailOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const result = await authService.resendEmailOtp({ email });
+        res.status(200).json({ success: true, message: result.message, ...(result.devOtp ? { devOtp: result.devOtp } : {}) });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || "Failed to resend code" });
+    }
+};
+
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.userId;
+        const result = await authService.changePassword({ userId, currentPassword, newPassword });
+        res.status(200).json({ success: true, message: result.message });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || "Failed to change password" });
+    }
+};
+
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const result = await authService.forgotPassword({ email });
+        res.status(200).json({ success: true, message: result.message, ...(result.devOtp ? { devOtp: result.devOtp } : {}) });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || "Password reset request failed" });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        const result = await authService.resetPassword({ email, otp, newPassword });
+        res.status(200).json({ success: true, message: result.message });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || "Failed to reset password" });
+    }
+};
+
 module.exports = {
     registerOrganization,
     joinOrganization,
     login,
     refreshAccessToken,
-    getMe
+    getMe,
+    verifyEmail,
+    resendEmailOtp,
+    changePassword,
+    forgotPassword,
+    resetPassword
 };

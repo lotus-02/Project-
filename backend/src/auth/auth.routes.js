@@ -4,7 +4,12 @@ const {
     joinOrganization,
     login,
     refreshAccessToken,
-    getMe
+    getMe,
+    verifyEmail,
+    resendEmailOtp,
+    changePassword,
+    forgotPassword,
+    resetPassword
 } = require("./auth.controller");
 const { authenticate } = require("../middleware/auth.middleware");
 const { tenantContext } = require("../middleware/tenant.middleware");
@@ -23,6 +28,13 @@ router.post("/join-organization", (req, res) => {
 router.post("/login",                 login);
 router.post("/refresh",               refreshAccessToken);
 router.get("/me",                     authenticate, tenantContext, getMe);
+
+// Email Verification & Password Management
+router.post("/verify-email",          verifyEmail);
+router.post("/resend-otp",            resendEmailOtp);
+router.post("/change-password",       authenticate, changePassword);
+router.post("/forgot-password",       forgotPassword);
+router.post("/reset-password",        resetPassword);
 
 // Public — lists orgs + users for login/register quick-select (no passwords exposed)
 router.get("/tenants-preview", async (req, res) => {

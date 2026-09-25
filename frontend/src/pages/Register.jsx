@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Building2, User, Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import EmailVerificationModal from '../components/EmailVerificationModal';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -9,6 +10,8 @@ export default function Register() {
   });
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [devOtp, setDevOtp] = useState(null);
 
   const { registerOrganization } = useAuth();
   const navigate = useNavigate();
@@ -17,8 +20,11 @@ export default function Register() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await registerOrganization(formData);
-      navigate('/');
+      const res = await registerOrganization(formData);
+      if (res?.data?.user?.devOtp) {
+        setDevOtp(res.data.user.devOtp);
+      }
+      setShowVerifyModal(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed');
     } finally { setLoading(false); }
@@ -110,6 +116,16 @@ export default function Register() {
         </div>
 
       </div>
+
+      <EmailVerificationModal
+        isOpen={showVerifyModal}
+        initialEmail={formData.email}
+        devOtp={devOtp}
+        onClose={() => {
+          setShowVerifyModal(false);
+          navigate('/');
+        }}
+      />
     </div>
   );
 }

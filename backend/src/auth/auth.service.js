@@ -5,6 +5,11 @@ const {
     generateAccessToken,
     generateRefreshToken
 } = require("../utils/jwt");
+const {
+    generateOtp,
+    sendVerificationEmail,
+    sendPasswordResetEmail
+} = require("../services/email.service");
 
 const registerOrganization = async ({
     organizationName,
@@ -21,6 +26,8 @@ const registerOrganization = async ({
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const emailOtp = generateOtp();
+    const emailOtpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
     const result = await prisma.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
@@ -101,11 +108,21 @@ const registerOrganization = async ({
                 email,
                 passwordHash,
                 tenantId: tenant.id,
-                roleId: adminRole.id
+                roleId: adminRole.id,
+                isEmailVerified: false,
+                emailOtp,
+                emailOtpExpires
             }
         });
 
         return { tenant, user, role: adminRole };
+    });
+
+    // Send verification email (logs to console if SMTP not configured)
+    const emailResult = await sendVerificationEmail({
+        email: result.user.email,
+        name: result.user.name,
+        otp: emailOtp
     });
 
     const accessToken = generateAccessToken({
@@ -129,10 +146,241 @@ const registerOrganization = async ({
             tenantId: result.user.tenantId,
             roleId: result.user.roleId,
             status: result.user.status,
-            role: result.role.name
+            role: result.role.name,
+            isEmailVerified: false,
+            ...(emailResult.simulated ? { devOtp: emailOtp } : {})
         },
         accessToken,
         refreshToken
+    };
+};
+
+const verifyEmail = async ({ email, otp }) => {
+    if (!email || !otp) {
+        throw new Error("Email and 6-digit OTP code are required");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+            role: {
+                include: {
+                    permissions: {
+                        include: { permission: true }
+                    }
+                }
+            },
+            tenant: true
+        }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    if (user.isEmailVerified) {
+        return {
+            alreadyVerified: true,
+            message: "Email is already verified",
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                isEmailVerified: true
+            }
+        };
+    }
+
+    if (!user.emailOtp || user.emailOtp !== otp.toString().trim()) {
+        throw new Error("Invalid verification code. Please check and try again.");
+    }
+
+    if (user.emailOtpExpires && new Date() > new Date(user.emailOtpExpires)) {
+        throw new Error("Verification code has expired. Please request a new code.");
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            isEmailVerified: true,
+            emailOtp: null,
+            emailOtpExpires: null
+        }
+    });
+
+    return {
+        success: true,
+        message: "Email verified successfully!",
+        user: {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            tenantId: updatedUser.tenantId,
+            roleId: updatedUser.roleId,
+            role: user.role?.name,
+            status: updatedUser.status,
+            tenantName: user.tenant?.name,
+            isEmailVerified: true
+        }
+    };
+};
+
+const resendEmailOtp = async ({ email }) => {
+    if (!email) {
+        throw new Error("Email address is required");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    if (user.isEmailVerified) {
+        throw new Error("Email is already verified");
+    }
+
+    const emailOtp = generateOtp();
+    const emailOtpExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            emailOtp,
+            emailOtpExpires
+        }
+    });
+
+    const emailResult = await sendVerificationEmail({
+        email: user.email,
+        name: user.name,
+        otp: emailOtp
+    });
+
+    return {
+        success: true,
+        message: "Verification code sent to your email",
+        ...(emailResult.simulated ? { devOtp: emailOtp } : {})
+    };
+};
+
+const changePassword = async ({ userId, currentPassword, newPassword }) => {
+    if (!userId || !currentPassword || !newPassword) {
+        throw new Error("Current password and new password are required");
+    }
+
+    if (newPassword.length < 8) {
+        throw new Error("New password must be at least 8 characters long");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!passwordMatch) {
+        throw new Error("Current password is incorrect");
+    }
+
+    if (currentPassword === newPassword) {
+        throw new Error("New password must be different from current password");
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash: newPasswordHash }
+    });
+
+    return {
+        success: true,
+        message: "Password changed successfully"
+    };
+};
+
+const forgotPassword = async ({ email }) => {
+    if (!email) {
+        throw new Error("Email is required");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email }
+    });
+
+    if (!user) {
+        throw new Error("No account found with this email address");
+    }
+
+    const otp = generateOtp();
+    const passwordResetOtpExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            passwordResetOtp: otp,
+            passwordResetOtpExpires
+        }
+    });
+
+    const emailResult = await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        otp
+    });
+
+    return {
+        success: true,
+        message: "Password reset OTP sent to your email",
+        ...(emailResult.simulated ? { devOtp: otp } : {})
+    };
+};
+
+const resetPassword = async ({ email, otp, newPassword }) => {
+    if (!email || !otp || !newPassword) {
+        throw new Error("Email, OTP code, and new password are required");
+    }
+
+    if (newPassword.length < 8) {
+        throw new Error("New password must be at least 8 characters long");
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email }
+    });
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    if (!user.passwordResetOtp || user.passwordResetOtp !== otp.toString().trim()) {
+        throw new Error("Invalid password reset code");
+    }
+
+    if (user.passwordResetOtpExpires && new Date() > new Date(user.passwordResetOtpExpires)) {
+        throw new Error("Password reset code has expired. Please request a new one.");
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            passwordHash: newPasswordHash,
+            passwordResetOtp: null,
+            passwordResetOtpExpires: null
+        }
+    });
+
+    return {
+        success: true,
+        message: "Password has been reset successfully. You can now log in."
     };
 };
 
@@ -194,6 +442,7 @@ const login = async ({ email, password }) => {
             role: user.role?.name,
             status: user.status,
             tenantName: user.tenant?.name,
+            isEmailVerified: user.isEmailVerified ?? false,
             permissions
         },
         accessToken,
@@ -270,6 +519,7 @@ const getMe = async (userId, tenantId) => {
         roleId: user.roleId,
         role: user.role?.name,
         status: user.status,
+        isEmailVerified: user.isEmailVerified ?? false,
         permissions
     };
 };
@@ -293,7 +543,7 @@ const joinOrganization = async ({ tenantId, roleId, name, email, password }) => 
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
-        data: { name, email, passwordHash, tenantId, roleId }
+        data: { name, email, passwordHash, tenantId, roleId, isEmailVerified: false }
     });
 
     const accessToken  = generateAccessToken({ userId: user.id, tenantId, roleId });
@@ -304,7 +554,8 @@ const joinOrganization = async ({ tenantId, roleId, name, email, password }) => 
         user: {
             id: user.id, name: user.name, email: user.email,
             tenantId, roleId, status: user.status, role: role.name,
-            tenantName: tenant.name
+            tenantName: tenant.name,
+            isEmailVerified: false
         },
         accessToken,
         refreshToken
@@ -316,5 +567,10 @@ module.exports = {
     joinOrganization,
     login,
     refreshAccessToken,
-    getMe
+    getMe,
+    verifyEmail,
+    resendEmailOtp,
+    changePassword,
+    forgotPassword,
+    resetPassword
 };

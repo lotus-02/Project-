@@ -82,8 +82,52 @@ export const AuthProvider = ({ children }) => {
     disconnectSocket();
   };
 
+  const verifyEmail = async (email, otp) => {
+    const res = await api.post('/auth/verify-email', { email, otp });
+    if (res.data.success) {
+      if (user && user.email === email) {
+        const updated = { ...user, isEmailVerified: true };
+        setUser(updated);
+        localStorage.setItem('user', JSON.stringify(updated));
+      }
+      return res.data;
+    }
+  };
+
+  const resendEmailOtp = async (email) => {
+    const res = await api.post('/auth/resend-otp', { email });
+    return res.data;
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    const res = await api.post('/auth/change-password', { currentPassword, newPassword });
+    return res.data;
+  };
+
+  const forgotPassword = async (email) => {
+    const res = await api.post('/auth/forgot-password', { email });
+    return res.data;
+  };
+
+  const resetPassword = async (email, otp, newPassword) => {
+    const res = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return res.data;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, registerOrganization, joinOrganization, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      registerOrganization,
+      joinOrganization,
+      logout,
+      verifyEmail,
+      resendEmailOtp,
+      changePassword,
+      forgotPassword,
+      resetPassword
+    }}>
       {children}
     </AuthContext.Provider>
   );

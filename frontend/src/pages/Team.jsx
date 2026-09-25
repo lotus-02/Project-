@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, ShieldCheck, X, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Users, UserPlus, ShieldCheck, X, Trash2, AlertTriangle, Loader2, Lock } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../services/socket';
@@ -15,7 +15,7 @@ export default function Team() {
   const [inviteLoading,   setInviteLoading]   = useState(false);
 
   // Delete modal state
-  const [deleteTarget,    setDeleteTarget]    = useState(null); // member object to delete
+  const [deleteTarget,    setDeleteTarget]    = useState(null);
   const [deleteLoading,   setDeleteLoading]   = useState(false);
   const [deleteError,     setDeleteError]     = useState('');
 
@@ -102,6 +102,46 @@ export default function Team() {
     }
   };
 
+  // Determine whether the current user has authority to delete a target member
+  const getDeletionStatus = (targetMember) => {
+    if (currentUser?.id === targetMember.id) {
+      return { canDelete: false, badge: 'Current User (You)' };
+    }
+
+    // Members and Viewers cannot delete anyone
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'MANAGER') {
+      return { canDelete: false, badge: null };
+    }
+
+    // Role Hierarchy: A Manager CANNOT delete an Administrator
+    if (currentUser?.role === 'MANAGER' && targetMember.role?.name === 'ADMIN') {
+      return {
+        canDelete: false,
+        isProtected: true,
+        reason: 'Administrators cannot be removed by Managers'
+      };
+    }
+
+    // Role Hierarchy: A Manager CANNOT delete another Manager
+    if (currentUser?.role === 'MANAGER' && targetMember.role?.name === 'MANAGER') {
+      return {
+        canDelete: false,
+        isProtected: true,
+        reason: 'Managers cannot remove other Managers'
+      };
+    }
+
+    return { canDelete: true };
+  };
+
+  // Roles assignable based on user hierarchy
+  const assignableRoles = roles.filter(r => {
+    if (currentUser?.role === 'MANAGER') {
+      return r.name !== 'ADMIN' && r.name !== 'MANAGER';
+    }
+    return true;
+  });
+
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
@@ -110,16 +150,21 @@ export default function Team() {
           <h1 className="text-2xl font-black text-[#e8f4ff]">Team &amp; Organization Members</h1>
           <p className="text-xs text-[#4a6080] mt-1">Manage user access, roles, and organizational security</p>
         </div>
-        <button
-          onClick={() => {
-            setInviteError('');
-            setShowInviteModal(true);
-          }}
-          className="btn-vyuha flex items-center space-x-2 px-4 py-2 rounded-xl text-xs"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>Add Member</span>
-        </button>
+        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
+          <button
+            onClick={() => {
+              setInviteError('');
+              if (assignableRoles.length > 0 && !formData.roleId) {
+                setFormData(prev => ({ ...prev, roleId: assignableRoles[0].id }));
+              }
+              setShowInviteModal(true);
+            }}
+            className="btn-vyuha flex items-center space-x-2 px-4 py-2 rounded-xl text-xs"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add Member</span>
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -159,6 +204,8 @@ export default function Team() {
               ) : (
                 members.map((m) => {
                   const isCurrent = currentUser?.id === m.id;
+                  const deletionStatus = getDeletionStatus(m);
+
                   return (
                     <tr key={m.id} className="border-t border-[#0d2040] hover:bg-[#0d1220] transition">
                       {/* Name */}
@@ -240,11 +287,9 @@ export default function Team() {
                         {new Date(m.createdAt).toLocaleDateString()}
                       </td>
 
-                      {/* Actions (Delete button) */}
+                      {/* Actions */}
                       <td className="py-4 px-6 text-right">
-                        {isCurrent ? (
-                          <span className="text-[10px] text-[#4a6080] italic px-2 py-1">Current User</span>
-                        ) : (
+                        {deletionStatus.canDelete ? (
                           <button
                             onClick={() => {
                               setDeleteError('');
@@ -257,6 +302,23 @@ export default function Team() {
                             <Trash2 className="w-3.5 h-3.5" />
                             <span className="text-[11px] font-medium">Delete</span>
                           </button>
+                        ) : deletionStatus.isProtected ? (
+                          <span
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border"
+                            style={{
+                              background: 'rgba(245,158,11,0.06)',
+                              borderColor: 'rgba(245,158,11,0.2)',
+                              color: '#fbbf24',
+                            }}
+                            title={deletionStatus.reason}
+                          >
+                            <Lock className="w-3 h-3" />
+                            <span>Protected</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#4a6080] italic px-2 py-1">
+                            {deletionStatus.badge || '—'}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -410,7 +472,7 @@ export default function Team() {
                   onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
                   className="vyuha-input w-full rounded-xl px-3.5 py-2"
                 >
-                  {roles.map((r) => (
+                  {assignableRoles.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name} — {r.description || 'Tenant Role'}
                     </option>

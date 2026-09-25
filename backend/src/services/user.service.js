@@ -41,6 +41,17 @@ const createUser = async ({ tenantId, currentUserId, name, email, password, role
         throw new Error("Specified role not found in your organization");
     }
 
+    // Role Hierarchy: Only an ADMIN can create another ADMIN
+    if (role.name === "ADMIN") {
+        const currentUser = await prisma.user.findFirst({
+            where: { id: currentUserId, tenantId },
+            include: { role: true }
+        });
+        if (currentUser?.role?.name !== "ADMIN") {
+            throw new Error("Permission denied: Only Administrators can create an Admin account");
+        }
+    }
+
     const passwordHash = await bcrypt.hash(password || "DefaultPassword123!", 12);
 
     const newUser = await prisma.user.create({
@@ -126,12 +137,41 @@ const deleteUser = async ({ tenantId, currentUserId, targetUserId }) => {
         throw new Error("You cannot delete your own account");
     }
 
-    const user = await prisma.user.findFirst({
-        where: { id: targetUserId, tenantId }
+    const currentUser = await prisma.user.findFirst({
+        where: { id: currentUserId, tenantId },
+        include: { role: true }
     });
 
-    if (!user) {
+    const targetUser = await prisma.user.findFirst({
+        where: { id: targetUserId, tenantId },
+        include: { role: true }
+    });
+
+    if (!targetUser) {
         return null;
+    }
+
+    // Role Hierarchy Rule 1: A Manager or non-admin cannot delete an Admin
+    if (targetUser.role?.name === "ADMIN" && currentUser?.role?.name !== "ADMIN") {
+        throw new Error("Permission denied: Managers cannot delete an Administrator");
+    }
+
+    // Role Hierarchy Rule 2: A Manager cannot delete other Managers
+    if (currentUser?.role?.name === "MANAGER" && targetUser.role?.name === "MANAGER") {
+        throw new Error("Permission denied: Managers cannot delete other Managers");
+    }
+
+    // Role Hierarchy Rule 3: The organization's sole Administrator cannot be deleted
+    if (targetUser.role?.name === "ADMIN") {
+        const adminCount = await prisma.user.count({
+            where: {
+                tenantId,
+                role: { name: "ADMIN" }
+            }
+        });
+        if (adminCount <= 1) {
+            throw new Error("Cannot delete the only Administrator of the organization");
+        }
     }
 
     await prisma.user.delete({

@@ -38,6 +38,17 @@ const ensureDatabaseRunning = async () => {
         const { default: EmbeddedPostgres } = await import("embedded-postgres");
         const dataDir = path.resolve(__dirname, "../../.pgdata");
 
+        // If port 5432 is not open but a stale postmaster.pid exists, clean it up
+        const pidFile = path.join(dataDir, "postmaster.pid");
+        if (fs.existsSync(pidFile)) {
+            try {
+                console.log("Detected stale postmaster.pid, cleaning up lock file...");
+                fs.unlinkSync(pidFile);
+            } catch (pidErr) {
+                console.warn("Notice cleaning postmaster.pid:", pidErr.message);
+            }
+        }
+
         pgInstance = new EmbeddedPostgres({
             databaseDir: dataDir,
             port,

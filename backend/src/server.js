@@ -64,6 +64,26 @@ const startServer = async () => {
         console.log(`🚀 Secure Multi-Tenant Backend running on http://localhost:${PORT}`);
         console.log(`🩺 Health check available at http://localhost:${PORT}/api/v1/health`);
     });
+
+    const shutdown = async () => {
+        try {
+            server.close();
+            await prisma.$disconnect();
+        } catch (e) {}
+    };
+
+    process.once("SIGUSR2", async () => {
+        await shutdown();
+        process.kill(process.pid, "SIGUSR2");
+    });
+    process.on("SIGINT", async () => {
+        await shutdown();
+        process.exit(0);
+    });
+    process.on("SIGTERM", async () => {
+        await shutdown();
+        process.exit(0);
+    });
 };
 
 startServer();

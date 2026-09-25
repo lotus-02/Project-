@@ -1,8 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, ShieldCheck, X, Trash2, AlertTriangle, Loader2, Lock } from 'lucide-react';
+import {
+  Users,
+  UserPlus,
+  ShieldCheck,
+  X,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  Lock,
+  Briefcase,
+  CheckCircle2,
+  Clock,
+  Activity,
+  FolderKanban,
+  Calendar,
+  Layers,
+  ArrowUpRight
+} from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../services/socket';
+
+const STATUS_CONFIG = {
+  DONE: {
+    label: 'Done',
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.1)',
+    border: 'rgba(16,185,129,0.25)',
+  },
+  IN_PROGRESS: {
+    label: 'In Progress',
+    color: '#00d4ff',
+    bg: 'rgba(0,212,255,0.1)',
+    border: 'rgba(0,212,255,0.25)',
+  },
+  REVIEW: {
+    label: 'Review',
+    color: '#a78bfa',
+    bg: 'rgba(167,139,250,0.1)',
+    border: 'rgba(167,139,250,0.25)',
+  },
+  TODO: {
+    label: 'To Do',
+    color: '#94a3b8',
+    bg: 'rgba(148,163,184,0.1)',
+    border: 'rgba(148,163,184,0.25)',
+  },
+};
+
+const PRIORITY_CONFIG = {
+  HIGH: { label: 'High', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  MEDIUM: { label: 'Medium', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  LOW: { label: 'Low', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+};
 
 export default function Team() {
   const { user: currentUser } = useAuth();
@@ -19,27 +69,33 @@ export default function Team() {
   const [deleteLoading,   setDeleteLoading]   = useState(false);
   const [deleteError,     setDeleteError]     = useState('');
 
+  // Work Profile modal state
+  const [selectedWorkUser, setSelectedWorkUser] = useState(null);
+  const [workModalTab,     setWorkModalTab]     = useState('tasks'); // 'tasks' | 'activities'
+
   useEffect(() => {
     fetchTeam();
     fetchRoles();
 
     const socket = getSocket();
     if (socket) {
-      socket.on('user:created', (newUser) => {
-        setMembers(prev => {
-          if (prev.some(m => m.id === newUser.id)) return prev;
-          return [newUser, ...prev];
-        });
-      });
+      socket.on('user:created', () => fetchTeam());
       socket.on('user:deleted', ({ id }) => {
         setMembers(prev => prev.filter(m => m.id !== id));
+        if (selectedWorkUser?.id === id) setSelectedWorkUser(null);
       });
+      socket.on('task:created', () => fetchTeam());
+      socket.on('task:updated', () => fetchTeam());
+      socket.on('activity:created', () => fetchTeam());
     }
 
     return () => {
       if (socket) {
         socket.off('user:created');
         socket.off('user:deleted');
+        socket.off('task:created');
+        socket.off('task:updated');
+        socket.off('activity:created');
       }
     };
   }, []);
@@ -47,7 +103,14 @@ export default function Team() {
   const fetchTeam = async () => {
     try {
       const res = await api.get('/users');
-      if (res.data.success) setMembers(res.data.data);
+      if (res.data.success) {
+        setMembers(res.data.data);
+        // If a member's work modal is currently open, refresh their data live
+        if (selectedWorkUser) {
+          const updated = res.data.data.find(u => u.id === selectedWorkUser.id);
+          if (updated) setSelectedWorkUser(updated);
+        }
+      }
     } catch (err) {
       console.error('Error fetching team members:', err);
     } finally {
@@ -102,39 +165,22 @@ export default function Team() {
     }
   };
 
-  // Determine whether the current user has authority to delete a target member
   const getDeletionStatus = (targetMember) => {
     if (currentUser?.id === targetMember.id) {
       return { canDelete: false, badge: 'Current User (You)' };
     }
-
-    // Members and Viewers cannot delete anyone
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'MANAGER') {
       return { canDelete: false, badge: null };
     }
-
-    // Role Hierarchy: A Manager CANNOT delete an Administrator
     if (currentUser?.role === 'MANAGER' && targetMember.role?.name === 'ADMIN') {
-      return {
-        canDelete: false,
-        isProtected: true,
-        reason: 'Administrators cannot be removed by Managers'
-      };
+      return { canDelete: false, isProtected: true, reason: 'Administrators cannot be removed by Managers' };
     }
-
-    // Role Hierarchy: A Manager CANNOT delete another Manager
     if (currentUser?.role === 'MANAGER' && targetMember.role?.name === 'MANAGER') {
-      return {
-        canDelete: false,
-        isProtected: true,
-        reason: 'Managers cannot remove other Managers'
-      };
+      return { canDelete: false, isProtected: true, reason: 'Managers cannot remove other Managers' };
     }
-
     return { canDelete: true };
   };
 
-  // Roles assignable based on user hierarchy
   const assignableRoles = roles.filter(r => {
     if (currentUser?.role === 'MANAGER') {
       return r.name !== 'ADMIN' && r.name !== 'MANAGER';
@@ -147,8 +193,10 @@ export default function Team() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#e8f4ff]">Team &amp; Organization Members</h1>
-          <p className="text-xs text-[#4a6080] mt-1">Manage user access, roles, and organizational security</p>
+          <h1 className="text-2xl font-black text-[#e8f4ff]">Team &amp; Work Contributions</h1>
+          <p className="text-xs text-[#4a6080] mt-1">
+            Track who is working on what, completed tasks, and member activity history
+          </p>
         </div>
         {(currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
           <button
@@ -167,13 +215,13 @@ export default function Team() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Main Table */}
       <div className="rounded-2xl border border-[#0d2040] overflow-hidden shadow-card" style={{ background: '#080c16' }}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead style={{ background: '#03040a', borderBottom: '1px solid #0d2040' }}>
               <tr>
-                {['Member', 'Role', 'Status', 'Tasks Assigned', 'Joined', 'Actions'].map((h, i) => (
+                {['Member', 'Role', 'Status', 'Work & Progress', 'Joined', 'Actions'].map((h, i) => (
                   <th
                     key={h}
                     className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest text-[#4a6080] ${
@@ -191,7 +239,7 @@ export default function Team() {
                   <td colSpan="6" className="py-12 text-center text-[#4a6080]">
                     <div className="flex items-center justify-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin text-[#00d4ff]" />
-                      <span>Loading team members...</span>
+                      <span>Loading team members &amp; work data...</span>
                     </div>
                   </td>
                 </tr>
@@ -205,6 +253,13 @@ export default function Team() {
                 members.map((m) => {
                   const isCurrent = currentUser?.id === m.id;
                   const deletionStatus = getDeletionStatus(m);
+                  const stats = m.workStats || {
+                    totalTasks: m._count?.assignedTasks || 0,
+                    doneCount: 0,
+                    inProgressCount: 0,
+                    todoCount: 0,
+                    completionRate: 0,
+                  };
 
                   return (
                     <tr key={m.id} className="border-t border-[#0d2040] hover:bg-[#0d1220] transition">
@@ -212,30 +267,41 @@ export default function Team() {
                       <td className="py-4 px-6">
                         <div className="flex items-center space-x-3">
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0"
+                            className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0 cursor-pointer"
+                            onClick={() => setSelectedWorkUser(m)}
                             style={{
                               background: 'rgba(0,212,255,0.08)',
                               border: '1px solid rgba(0,212,255,0.25)',
                               color: '#00d4ff',
-                              boxShadow: '0 0 8px rgba(0,212,255,0.15)',
+                              boxShadow: '0 0 10px rgba(0,212,255,0.15)',
                             }}
                           >
                             {m.name.charAt(0).toUpperCase()}
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-semibold text-[#e8f4ff]">{m.name}</span>
-                            {isCurrent && (
+                          <div>
+                            <div className="flex items-center space-x-2">
                               <span
-                                className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
-                                style={{
-                                  background: 'rgba(0,212,255,0.1)',
-                                  color: '#00d4ff',
-                                  border: '1px solid rgba(0,212,255,0.25)',
-                                }}
+                                onClick={() => setSelectedWorkUser(m)}
+                                className="font-semibold text-[#e8f4ff] hover:text-[#00d4ff] transition cursor-pointer text-xs"
                               >
-                                You
+                                {m.name}
                               </span>
-                            )}
+                              {isCurrent && (
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider"
+                                  style={{
+                                    background: 'rgba(0,212,255,0.1)',
+                                    color: '#00d4ff',
+                                    border: '1px solid rgba(0,212,255,0.25)',
+                                  }}
+                                >
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-[#4a6080]">
+                              {stats.totalTasks} task{stats.totalTasks !== 1 ? 's' : ''} assigned
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -279,8 +345,49 @@ export default function Team() {
                         </span>
                       </td>
 
-                      {/* Tasks */}
-                      <td className="py-4 px-6 text-[#4a6080]">{m._count?.assignedTasks || 0} tasks</td>
+                      {/* Work & Progress */}
+                      <td className="py-4 px-6 min-w-[200px]">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center space-x-2 text-[10px]">
+                            {stats.doneCount > 0 && (
+                              <span className="text-[#10b981] font-bold flex items-center space-x-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>{stats.doneCount} Done</span>
+                              </span>
+                            )}
+                            {stats.inProgressCount > 0 && (
+                              <span className="text-[#00d4ff] font-bold flex items-center space-x-0.5">
+                                <Clock className="w-3 h-3" />
+                                <span>{stats.inProgressCount} Active</span>
+                              </span>
+                            )}
+                            {stats.todoCount > 0 && (
+                              <span className="text-[#94a3b8] font-medium">
+                                {stats.todoCount} To Do
+                              </span>
+                            )}
+                            {stats.totalTasks === 0 && (
+                              <span className="text-[#4a6080] italic">No active tasks</span>
+                            )}
+                          </div>
+
+                          {stats.totalTasks > 0 && (
+                            <div className="flex items-center space-x-2">
+                              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#0d1220' }}>
+                                <div
+                                  className="h-full rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${stats.completionRate}%`,
+                                    background: 'linear-gradient(90deg, #0066ff, #00d4ff)',
+                                    boxShadow: '0 0 8px rgba(0,212,255,0.4)',
+                                  }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-bold text-[#e8f4ff]">{stats.completionRate}%</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
 
                       {/* Joined Date */}
                       <td className="py-4 px-6 text-[#4a6080] text-[11px]">
@@ -289,37 +396,48 @@ export default function Team() {
 
                       {/* Actions */}
                       <td className="py-4 px-6 text-right">
-                        {deletionStatus.canDelete ? (
+                        <div className="inline-flex items-center space-x-2">
+                          {/* View Work Button */}
                           <button
                             onClick={() => {
-                              setDeleteError('');
-                              setDeleteTarget(m);
+                              setSelectedWorkUser(m);
+                              setWorkModalTab('tasks');
                             }}
-                            title={`Remove ${m.name}`}
-                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-[#0d2040] text-[#4a6080] hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all duration-200"
-                            style={{ background: '#03040a' }}
+                            title={`View work & activity for ${m.name}`}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-[#00d4ff30] text-[#00d4ff] hover:bg-[#00d4ff15] transition-all duration-200"
+                            style={{ background: 'rgba(0,212,255,0.04)' }}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span className="text-[11px] font-medium">Delete</span>
+                            <Briefcase className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-semibold">View Work</span>
                           </button>
-                        ) : deletionStatus.isProtected ? (
-                          <span
-                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border"
-                            style={{
-                              background: 'rgba(245,158,11,0.06)',
-                              borderColor: 'rgba(245,158,11,0.2)',
-                              color: '#fbbf24',
-                            }}
-                            title={deletionStatus.reason}
-                          >
-                            <Lock className="w-3 h-3" />
-                            <span>Protected</span>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-[#4a6080] italic px-2 py-1">
-                            {deletionStatus.badge || '—'}
-                          </span>
-                        )}
+
+                          {/* Delete Button */}
+                          {deletionStatus.canDelete ? (
+                            <button
+                              onClick={() => {
+                                setDeleteError('');
+                                setDeleteTarget(m);
+                              }}
+                              title={`Remove ${m.name}`}
+                              className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-[#0d2040] text-[#4a6080] hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all duration-200"
+                              style={{ background: '#03040a' }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : deletionStatus.isProtected ? (
+                            <span
+                              className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-[10px] font-medium border"
+                              style={{
+                                background: 'rgba(245,158,11,0.06)',
+                                borderColor: 'rgba(245,158,11,0.2)',
+                                color: '#fbbf24',
+                              }}
+                              title={deletionStatus.reason}
+                            >
+                              <Lock className="w-3 h-3" />
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -329,6 +447,282 @@ export default function Team() {
           </table>
         </div>
       </div>
+
+      {/* ─── Member Work & Contributions Modal ─── */}
+      {selectedWorkUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(3,4,10,0.85)', backdropFilter: 'blur(12px)' }}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[85vh] flex flex-col p-6 rounded-2xl border border-[#00d4ff25] shadow-2xl animate-slide-in overflow-hidden"
+            style={{ background: '#080c16', boxShadow: '0 0 50px rgba(0,102,255,0.15)' }}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-[#0d2040]">
+              <div className="flex items-center space-x-3.5">
+                <div
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, #0066ff, #00d4ff)',
+                    color: '#03040a',
+                    boxShadow: '0 0 16px rgba(0,212,255,0.4)',
+                  }}
+                >
+                  {selectedWorkUser.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-base font-black text-[#e8f4ff]">{selectedWorkUser.name}</h2>
+                    <span
+                      className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider"
+                      style={{
+                        background:
+                          selectedWorkUser.role?.name === 'ADMIN'
+                            ? 'rgba(0,212,255,0.15)'
+                            : selectedWorkUser.role?.name === 'MANAGER'
+                            ? 'rgba(245,158,11,0.15)'
+                            : 'rgba(124,58,237,0.15)',
+                        color:
+                          selectedWorkUser.role?.name === 'ADMIN'
+                            ? '#00d4ff'
+                            : selectedWorkUser.role?.name === 'MANAGER'
+                            ? '#f59e0b'
+                            : '#a78bfa',
+                        border: '1px solid rgba(0,212,255,0.2)',
+                      }}
+                    >
+                      {selectedWorkUser.role?.name || 'Member'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#4a6080] mt-0.5">
+                    Member since {new Date(selectedWorkUser.createdAt).toLocaleDateString()} · Active in organization
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedWorkUser(null)}
+                className="text-[#4a6080] hover:text-[#e8f4ff] transition p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 4 Work KPI Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+              <div
+                className="p-3.5 rounded-xl border border-[#0d2040]"
+                style={{ background: '#03040a' }}
+              >
+                <div className="flex items-center justify-between text-[#4a6080] mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Total Tasks</span>
+                  <Layers className="w-3.5 h-3.5 text-[#00d4ff]" />
+                </div>
+                <div className="text-xl font-black text-[#e8f4ff]">
+                  {selectedWorkUser.workStats?.totalTasks || 0}
+                </div>
+                <div className="text-[10px] text-[#4a6080] mt-0.5">Assigned work</div>
+              </div>
+
+              <div
+                className="p-3.5 rounded-xl border border-[#0d2040]"
+                style={{ background: '#03040a' }}
+              >
+                <div className="flex items-center justify-between text-[#4a6080] mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Done</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#10b981]" />
+                </div>
+                <div className="text-xl font-black text-[#10b981]">
+                  {selectedWorkUser.workStats?.doneCount || 0}
+                </div>
+                <div className="text-[10px] text-[#10b981]/70 mt-0.5">Completed tasks</div>
+              </div>
+
+              <div
+                className="p-3.5 rounded-xl border border-[#0d2040]"
+                style={{ background: '#03040a' }}
+              >
+                <div className="flex items-center justify-between text-[#4a6080] mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">In Progress</span>
+                  <Clock className="w-3.5 h-3.5 text-[#00d4ff]" />
+                </div>
+                <div className="text-xl font-black text-[#00d4ff]">
+                  {selectedWorkUser.workStats?.inProgressCount || 0}
+                </div>
+                <div className="text-[10px] text-[#00d4ff]/70 mt-0.5">Ongoing work</div>
+              </div>
+
+              <div
+                className="p-3.5 rounded-xl border border-[#0d2040]"
+                style={{ background: '#03040a' }}
+              >
+                <div className="flex items-center justify-between text-[#4a6080] mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Completion</span>
+                  <Activity className="w-3.5 h-3.5 text-[#a78bfa]" />
+                </div>
+                <div className="text-xl font-black text-[#a78bfa]">
+                  {selectedWorkUser.workStats?.completionRate || 0}%
+                </div>
+                <div className="text-[10px] text-[#a78bfa]/70 mt-0.5">
+                  {selectedWorkUser.workStats?.activitiesCount || 0} total actions
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs Header */}
+            <div className="flex border-b border-[#0d2040] mb-3">
+              <button
+                onClick={() => setWorkModalTab('tasks')}
+                className="flex items-center space-x-2 px-4 py-2.5 text-xs font-bold transition border-b-2"
+                style={{
+                  color: workModalTab === 'tasks' ? '#00d4ff' : '#4a6080',
+                  borderColor: workModalTab === 'tasks' ? '#00d4ff' : 'transparent',
+                }}
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Assigned Tasks ({selectedWorkUser.assignedTasks?.length || 0})</span>
+              </button>
+              <button
+                onClick={() => setWorkModalTab('activities')}
+                className="flex items-center space-x-2 px-4 py-2.5 text-xs font-bold transition border-b-2"
+                style={{
+                  color: workModalTab === 'activities' ? '#00d4ff' : '#4a6080',
+                  borderColor: workModalTab === 'activities' ? '#00d4ff' : 'transparent',
+                }}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Activity History ({selectedWorkUser.activities?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Modal Body / Scrollable Content */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 text-xs">
+              {/* ─── TAB 1: Assigned Tasks ─── */}
+              {workModalTab === 'tasks' && (
+                <>
+                  {!selectedWorkUser.assignedTasks || selectedWorkUser.assignedTasks.length === 0 ? (
+                    <div className="text-center py-10 space-y-2">
+                      <Briefcase className="w-8 h-8 text-[#4a6080] mx-auto opacity-50" />
+                      <p className="text-xs text-[#e8f4ff] font-medium">No tasks assigned yet</p>
+                      <p className="text-[11px] text-[#4a6080]">
+                        Assign tasks from the Tasks Board to allocate work to {selectedWorkUser.name}.
+                      </p>
+                    </div>
+                  ) : (
+                    selectedWorkUser.assignedTasks.map((t) => {
+                      const st = STATUS_CONFIG[t.status] || STATUS_CONFIG.TODO;
+                      const pr = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.MEDIUM;
+                      return (
+                        <div
+                          key={t.id}
+                          className="p-3.5 rounded-xl border border-[#0d2040] hover:border-[#00d4ff30] transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          style={{ background: '#03040a' }}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-[#e8f4ff] text-xs">{t.title}</span>
+                              <span
+                                className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider"
+                                style={{
+                                  background: st.bg,
+                                  color: st.color,
+                                  border: `1px solid ${st.border}`,
+                                }}
+                              >
+                                {st.label}
+                              </span>
+                              <span
+                                className="px-2 py-0.5 rounded text-[9px] font-black uppercase"
+                                style={{ background: pr.bg, color: pr.color }}
+                              >
+                                {pr.label}
+                              </span>
+                            </div>
+
+                            {t.description && (
+                              <p className="text-[11px] text-[#4a6080] line-clamp-1">{t.description}</p>
+                            )}
+
+                            <div className="flex items-center space-x-3 text-[10px] text-[#4a6080] pt-0.5">
+                              {t.project && (
+                                <span className="flex items-center space-x-1 text-[#00d4ff]/80">
+                                  <FolderKanban className="w-3 h-3" />
+                                  <span>{t.project.name}</span>
+                                </span>
+                              )}
+                              {t.dueDate && (
+                                <span className="flex items-center space-x-1">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>Due {new Date(t.dueDate).toLocaleDateString()}</span>
+                                </span>
+                              )}
+                              {t.estimatedHours && (
+                                <span className="flex items-center space-x-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{t.estimatedHours} hrs est.</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </>
+              )}
+
+              {/* ─── TAB 2: Activity Audit History ─── */}
+              {workModalTab === 'activities' && (
+                <>
+                  {!selectedWorkUser.activities || selectedWorkUser.activities.length === 0 ? (
+                    <div className="text-center py-10 space-y-2">
+                      <Activity className="w-8 h-8 text-[#4a6080] mx-auto opacity-50" />
+                      <p className="text-xs text-[#e8f4ff] font-medium">No activity recorded yet</p>
+                      <p className="text-[11px] text-[#4a6080]">
+                        Actions performed by {selectedWorkUser.name} will be logged here automatically.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 divide-y divide-[#0d2040]">
+                      {selectedWorkUser.activities.map((act) => (
+                        <div key={act.id} className="pt-2.5 first:pt-0 flex items-start space-x-3">
+                          <div
+                            className="w-2 h-2 rounded-full mt-1.5 shrink-0"
+                            style={{
+                              background: '#00d4ff',
+                              boxShadow: '0 0 8px #00d4ff',
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[#e8f4ff] font-medium text-xs">
+                              {act.details || act.action}
+                            </p>
+                            <div className="flex items-center space-x-2 text-[10px] text-[#4a6080] mt-0.5">
+                              <span className="uppercase font-bold tracking-wider">{act.entityType}</span>
+                              <span>·</span>
+                              <span>{new Date(act.createdAt).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-[#0d2040] flex justify-end">
+              <button
+                onClick={() => setSelectedWorkUser(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#e8f4ff] hover:bg-[#0d1220] transition border border-[#0d2040]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
@@ -375,7 +769,7 @@ export default function Team() {
               </div>
               <div className="flex justify-between">
                 <span>Assigned Tasks:</span>
-                <span className="font-semibold text-[#e8f4ff]">{deleteTarget._count?.assignedTasks || 0}</span>
+                <span className="font-semibold text-[#e8f4ff]">{deleteTarget.workStats?.totalTasks || deleteTarget._count?.assignedTasks || 0}</span>
               </div>
               <p className="text-[10px] text-amber-400/80 pt-1 border-t border-[#0d2040]">
                 Note: Assigned tasks will be unassigned automatically.

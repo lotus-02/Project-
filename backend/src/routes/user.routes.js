@@ -24,6 +24,35 @@ router.get(
     }
 );
 
+router.get(
+    "/:id/work",
+    authenticate,
+    tenantContext,
+    authorizePermission("user:read"),
+    async (req, res, next) => {
+        try {
+            const profile = await userService.getUserWorkProfile({
+                tenantId: req.tenantId,
+                targetUserId: req.params.id
+            });
+
+            if (!profile) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+
+            res.status(200).json({
+                success: true,
+                data: profile
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 router.post(
     "/",
     authenticate,

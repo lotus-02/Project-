@@ -4,7 +4,7 @@ const socket = require("../socket");
 const { logActivity } = require("./activity.service");
 
 const getUsersByTenant = async (tenantId) => {
-    return prisma.user.findMany({
+    const users = await prisma.user.findMany({
         where: { tenantId },
         select: {
             id: true,
@@ -15,11 +15,65 @@ const getUsersByTenant = async (tenantId) => {
             role: {
                 select: { id: true, name: true, description: true }
             },
+            assignedTasks: {
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    status: true,
+                    priority: true,
+                    estimatedHours: true,
+                    actualHours: true,
+                    dueDate: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    project: {
+                        select: { id: true, name: true }
+                    }
+                },
+                orderBy: { updatedAt: "desc" }
+            },
+            activities: {
+                select: {
+                    id: true,
+                    action: true,
+                    details: true,
+                    entityType: true,
+                    entityId: true,
+                    createdAt: true
+                },
+                orderBy: { createdAt: "desc" },
+                take: 15
+            },
             _count: {
-                select: { assignedTasks: true }
+                select: { assignedTasks: true, comments: true, activities: true }
             }
         },
         orderBy: { createdAt: "desc" }
+    });
+
+    return users.map((user) => {
+        const tasks = user.assignedTasks || [];
+        const doneTasks = tasks.filter((t) => t.status === "DONE");
+        const inProgressTasks = tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "REVIEW");
+        const todoTasks = tasks.filter((t) => t.status === "TODO");
+        const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
+        const totalActualHours = tasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
+
+        return {
+            ...user,
+            workStats: {
+                totalTasks: tasks.length,
+                doneCount: doneTasks.length,
+                inProgressCount: inProgressTasks.length,
+                todoCount: todoTasks.length,
+                completionRate: tasks.length > 0 ? Math.round((doneTasks.length / tasks.length) * 100) : 0,
+                totalEstimatedHours,
+                totalActualHours,
+                activitiesCount: user._count?.activities || 0,
+                commentsCount: user._count?.comments || 0
+            }
+        };
     });
 };
 
@@ -180,7 +234,7 @@ const deleteUser = async ({ tenantId, currentUserId, targetUserId }) => {
 
     await logActivity({
         action: "USER_REMOVED",
-        details: `User "${user.name}" (${user.email}) was removed`,
+        details: `User "${targetUser.name}" (${targetUser.email}) was removed`,
         entityType: "USER",
         entityId: targetUserId,
         userId: currentUserId,
@@ -192,8 +246,76 @@ const deleteUser = async ({ tenantId, currentUserId, targetUserId }) => {
     return true;
 };
 
+const getUserWorkProfile = async ({ tenantId, targetUserId }) => {
+    const user = await prisma.user.findFirst({
+        where: { id: targetUserId, tenantId },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            role: { select: { id: true, name: true, description: true } },
+            assignedTasks: {
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    status: true,
+                    priority: true,
+                    estimatedHours: true,
+                    actualHours: true,
+                    dueDate: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    project: { select: { id: true, name: true, priority: true } }
+                },
+                orderBy: { updatedAt: "desc" }
+            },
+            activities: {
+                select: {
+                    id: true,
+                    action: true,
+                    details: true,
+                    entityType: true,
+                    entityId: true,
+                    createdAt: true
+                },
+                orderBy: { createdAt: "desc" },
+                take: 30
+            },
+            _count: {
+                select: { assignedTasks: true, comments: true, activities: true }
+            }
+        }
+    });
+
+    if (!user) return null;
+
+    const tasks = user.assignedTasks || [];
+    const doneTasks = tasks.filter((t) => t.status === "DONE");
+    const inProgressTasks = tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "REVIEW");
+    const todoTasks = tasks.filter((t) => t.status === "TODO");
+
+    return {
+        ...user,
+        workStats: {
+            totalTasks: tasks.length,
+            doneCount: doneTasks.length,
+            inProgressCount: inProgressTasks.length,
+            todoCount: todoTasks.length,
+            completionRate: tasks.length > 0 ? Math.round((doneTasks.length / tasks.length) * 100) : 0,
+            totalEstimatedHours: tasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0),
+            totalActualHours: tasks.reduce((sum, t) => sum + (t.actualHours || 0), 0),
+            activitiesCount: user._count?.activities || 0,
+            commentsCount: user._count?.comments || 0
+        }
+    };
+};
+
 module.exports = {
     getUsersByTenant,
+    getUserWorkProfile,
     createUser,
     updateUser,
     deleteUser

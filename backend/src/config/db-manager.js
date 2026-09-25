@@ -25,6 +25,14 @@ const isPortOpen = (port, host = "127.0.0.1") => {
 let pgInstance = null;
 
 const ensureDatabaseRunning = async () => {
+    const dbUrl = process.env.DATABASE_URL || "";
+    const isRemote = dbUrl && !dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1");
+
+    if (isRemote || (process.env.NODE_ENV === "production" && isRemote)) {
+        console.log("🌐 Remote Cloud PostgreSQL detected via DATABASE_URL. Skipping embedded database.");
+        return;
+    }
+
     const port = 5432;
     const isRunning = await isPortOpen(port);
 

@@ -1,0 +1,34 @@
+services:
+  # Backend API & WebSocket Server
+  - type: web
+    name: vyuha-backend
+    runtime: node
+    plan: free
+    buildCommand: cd backend && npm install && npx prisma db push
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vyuha-postgres
+          property: connectionString
+
+  # Python ML Microservice
+  - type: web
+    name: vyuha-ml
+    runtime: python
+    plan: free
+    buildCommand: cd ml-service && pip install -r requirements.txt
+    startCommand: cd ml-service && uvicorn main:app --host 0.0.0.0 --port $PORT
+
+databases:
+  # Free Managed PostgreSQL Database
+  - name: vyuha-postgres
+    plan: free
+    databaseName: project_management
+    user: postgres

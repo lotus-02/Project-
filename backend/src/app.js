@@ -20,7 +20,8 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
 ];
 
 app.use(helmet({
@@ -30,7 +31,12 @@ app.use(helmet({
 
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === "development") {
+        if (
+            !origin ||
+            allowedOrigins.includes(origin) ||
+            process.env.NODE_ENV === "development" ||
+            /^https:\/\/.*\.vercel\.app$/.test(origin)
+        ) {
             callback(null, true);
             return;
         }

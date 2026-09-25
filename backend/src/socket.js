@@ -3,11 +3,24 @@ const { verifyAccessToken } = require("./utils/jwt");
 
 let io = null;
 
-const initSocket = (httpServer, allowedOrigins = ["http://localhost:3000", "http://localhost:5173"]) => {
+const defaultOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
+];
+
+const initSocket = (httpServer, allowedOrigins = defaultOrigins) => {
     io = new Server(httpServer, {
         cors: {
             origin: (origin, callback) => {
-                if (!origin || allowedOrigins.includes(origin)) {
+                if (
+                    !origin ||
+                    allowedOrigins.includes(origin) ||
+                    process.env.NODE_ENV === "development" ||
+                    /^https:\/\/.*\.vercel\.app$/.test(origin)
+                ) {
                     callback(null, true);
                 } else {
                     callback(new Error("CORS policy restriction"));

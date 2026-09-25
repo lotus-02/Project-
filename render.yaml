@@ -4,7 +4,7 @@ services:
     name: vyuha-backend
     runtime: node
     plan: free
-    buildCommand: cd backend && npm install && npx prisma db push
+    buildCommand: cd backend && npm install && npx prisma generate
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV

@@ -33,24 +33,67 @@ const registerOrganization = async ({
             }
         });
 
-        const role = await tx.role.create({
-            data: {
-                name: "ADMIN",
-                description: "Tenant administrator",
-                tenantId: tenant.id
-            }
-        });
+        // Fetch all global permissions
+        const allPermissions = await tx.permission.findMany();
+        const permMap = {};
+        for (const p of allPermissions) permMap[p.name] = p.id;
 
-        // Fetch all permissions and assign to ADMIN role
-        const permissions = await tx.permission.findMany();
-        for (const permission of permissions) {
-            await tx.rolePermission.create({
+        // Define 4 default roles with their permission sets
+        const roleDefs = [
+            {
+                name: "ADMIN",
+                description: "Full access — tenant administrator",
+                perms: Object.keys(permMap)  // all permissions
+            },
+            {
+                name: "MANAGER",
+                description: "Manage projects, tasks and view team",
+                perms: [
+                    "project:create", "project:read", "project:update",
+                    "task:create", "task:read", "task:update", "task:delete",
+                    "user:read", "analytics:read"
+                ]
+            },
+            {
+                name: "MEMBER",
+                description: "Work on assigned tasks and view projects",
+                perms: [
+                    "project:read",
+                    "task:create", "task:read", "task:update",
+                    "user:read", "analytics:read"
+                ]
+            },
+            {
+                name: "VIEWER",
+                description: "Read-only access to projects and tasks",
+                perms: [
+                    "project:read", "task:read", "user:read", "analytics:read"
+                ]
+            }
+        ];
+
+        const createdRoles = {};
+        for (const def of roleDefs) {
+            const role = await tx.role.create({
                 data: {
-                    roleId: role.id,
-                    permissionId: permission.id
+                    name: def.name,
+                    description: def.description,
+                    tenantId: tenant.id
                 }
             });
+            createdRoles[def.name] = role;
+
+            for (const permName of def.perms) {
+                const permId = permMap[permName];
+                if (permId) {
+                    await tx.rolePermission.create({
+                        data: { roleId: role.id, permissionId: permId }
+                    });
+                }
+            }
         }
+
+        const adminRole = createdRoles["ADMIN"];
 
         const user = await tx.user.create({
             data: {
@@ -58,15 +101,11 @@ const registerOrganization = async ({
                 email,
                 passwordHash,
                 tenantId: tenant.id,
-                roleId: role.id
+                roleId: adminRole.id
             }
         });
 
-        return {
-            tenant,
-            user,
-            role
-        };
+        return { tenant, user, role: adminRole };
     });
 
     const accessToken = generateAccessToken({
@@ -235,8 +274,46 @@ const getMe = async (userId, tenantId) => {
     };
 };
 
+const joinOrganization = async ({ tenantId, roleId, name, email, password }) => {
+    // Check email uniqueness
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) throw new Error("Email already registered");
+
+    // Validate tenant exists
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new Error("Organization not found");
+
+    // Validate role belongs to this tenant and is not ADMIN
+    const role = await prisma.role.findFirst({
+        where: { id: roleId, tenantId }
+    });
+    if (!role) throw new Error("Invalid role for this organization");
+    if (role.name === "ADMIN") throw new Error("Cannot self-register as ADMIN");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+        data: { name, email, passwordHash, tenantId, roleId }
+    });
+
+    const accessToken  = generateAccessToken({ userId: user.id, tenantId, roleId });
+    const refreshToken = generateRefreshToken({ userId: user.id, tenantId, roleId });
+
+    return {
+        tenant: { id: tenant.id, name: tenant.name },
+        user: {
+            id: user.id, name: user.name, email: user.email,
+            tenantId, roleId, status: user.status, role: role.name,
+            tenantName: tenant.name
+        },
+        accessToken,
+        refreshToken
+    };
+};
+
 module.exports = {
     registerOrganization,
+    joinOrganization,
     login,
     refreshAccessToken,
     getMe

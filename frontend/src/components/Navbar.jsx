@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Bell, ShieldCheck, Building2, User, LogOut, Check } from 'lucide-react';
+import { Bell, ShieldCheck, Building2, LogOut, Check } from 'lucide-react';
 import api from '../services/api';
 import { getSocket } from '../services/socket';
 
@@ -11,23 +11,16 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!user) return;
-
     api.get('/notifications')
-      .then(res => {
-        if (res.data.success) setNotifications(res.data.data);
-      })
+      .then(res => { if (res.data.success) setNotifications(res.data.data); })
       .catch(() => {});
-
     const socket = getSocket();
     if (socket) {
       socket.on('notification:new', (notif) => {
         setNotifications(prev => [notif, ...prev]);
       });
     }
-
-    return () => {
-      if (socket) socket.off('notification:new');
-    };
+    return () => { if (socket) socket.off('notification:new'); };
   }, [user]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -40,53 +33,69 @@ export default function Navbar() {
   };
 
   return (
-    <header className="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 px-6 flex items-center justify-between">
+    <header
+      className="h-16 sticky top-0 z-30 px-6 flex items-center justify-between border-b border-[#0d2040]"
+      style={{ background: 'rgba(8,12,22,0.92)', backdropFilter: 'blur(16px)' }}
+    >
+      {/* Left: org + role */}
       <div className="flex items-center space-x-3">
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-2 rounded-lg flex items-center space-x-2">
-          <Building2 className="w-5 h-5 text-emerald-400" />
-          <span className="font-semibold text-sm tracking-wide">{user?.tenantName || 'Organization'}</span>
+        <div
+          className="flex items-center space-x-2 px-3 py-1.5 rounded-lg border border-[#0066ff30] text-[#00d4ff] text-xs font-semibold tracking-wide"
+          style={{ background: 'rgba(0,102,255,0.08)' }}
+        >
+          <Building2 className="w-4 h-4 text-[#0066ff]" />
+          <span>{user?.tenantName || 'Organization'}</span>
         </div>
-        <div className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 bg-slate-800/80 rounded-md border border-slate-700/60 text-xs text-slate-400">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="font-medium text-slate-300">{user?.role || 'Member'}</span>
+        <div
+          className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-md border border-[#7c3aed30] text-[11px] font-bold uppercase tracking-wider"
+          style={{ background: 'rgba(124,58,237,0.08)', color: '#a78bfa' }}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>{user?.role || 'Member'}</span>
         </div>
       </div>
 
+      {/* Right: bell + user */}
       <div className="flex items-center space-x-4">
         {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg relative transition"
+            className="p-2 rounded-lg transition relative"
+            style={{ color: '#4a6080' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#00d4ff'}
+            onMouseLeave={e => e.currentTarget.style.color = '#4a6080'}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 text-slate-950 font-bold text-[10px] rounded-full flex items-center justify-center">
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full text-[#03040a] font-black text-[10px] flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#0066ff,#00d4ff)', boxShadow:'0 0 8px rgba(0,212,255,0.6)' }}>
                 {unreadCount}
               </span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl py-2 z-50">
-              <div className="px-4 py-2 border-b border-slate-700/60 flex items-center justify-between">
-                <span className="font-semibold text-xs text-slate-300 uppercase tracking-wider">Notifications</span>
+            <div className="absolute right-0 mt-2 w-80 rounded-xl shadow-2xl py-2 z-50 border border-[#0d2040]"
+              style={{ background: '#080c16' }}>
+              <div className="px-4 py-2 border-b border-[#0d2040] flex items-center justify-between">
+                <span className="font-bold text-[11px] text-[#e8f4ff] uppercase tracking-wider">Notifications</span>
                 {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-xs text-emerald-400 hover:underline flex items-center space-x-1">
+                  <button onClick={markAllAsRead} className="text-[11px] text-[#00d4ff] hover:underline flex items-center space-x-1">
                     <Check className="w-3 h-3" />
                     <span>Mark all read</span>
                   </button>
                 )}
               </div>
-              <div className="max-h-64 overflow-y-auto divide-y divide-slate-700/40">
+              <div className="max-h-64 overflow-y-auto divide-y divide-[#0d2040]">
                 {notifications.length === 0 ? (
-                  <p className="text-xs text-slate-500 p-4 text-center">No notifications yet</p>
+                  <p className="text-xs text-[#4a6080] p-4 text-center">No notifications yet</p>
                 ) : (
                   notifications.map(n => (
-                    <div key={n.id} className={`p-3 text-xs ${n.isRead ? 'opacity-60' : 'bg-slate-750'}`}>
-                      <p className="font-medium text-slate-200">{n.title}</p>
-                      <p className="text-slate-400 mt-0.5">{n.message}</p>
-                      <span className="text-[10px] text-slate-500 block mt-1">
+                    <div key={n.id} className={`p-3 text-xs ${n.isRead ? 'opacity-50' : ''}`}>
+                      <p className="font-semibold text-[#e8f4ff]">{n.title}</p>
+                      <p className="text-[#4a6080] mt-0.5">{n.message}</p>
+                      <span className="text-[10px] text-[#4a6080] block mt-1">
                         {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -97,21 +106,24 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* User Info & Logout */}
-        <div className="flex items-center space-x-3 pl-2 border-l border-slate-800">
+        {/* User + Logout */}
+        <div className="flex items-center space-x-3 pl-4 border-l border-[#0d2040]">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-semibold text-xs">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs text-[#00d4ff] border border-[#00d4ff30]"
+              style={{ background: 'rgba(0,212,255,0.08)', boxShadow:'0 0 8px rgba(0,212,255,0.15)' }}
+            >
               {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div className="hidden lg:block text-left">
-              <p className="text-xs font-semibold text-slate-200">{user?.name}</p>
-              <p className="text-[10px] text-slate-400">{user?.email}</p>
+              <p className="text-xs font-semibold text-[#e8f4ff]">{user?.name}</p>
+              <p className="text-[10px] text-[#4a6080]">{user?.email}</p>
             </div>
           </div>
           <button
             onClick={logout}
             title="Log out"
-            className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+            className="p-2 rounded-lg transition text-[#4a6080] hover:text-red-400"
           >
             <LogOut className="w-4 h-4" />
           </button>

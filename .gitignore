@@ -43,7 +43,10 @@ venv/
 env/
 
 # IDE / editor
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
 .idea/
 
 # OS files

@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend (Node.js)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-r", "dotenv/config"],
+      "program": "${workspaceFolder}/backend/src/server.js",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {},
+      "console": "integratedTerminal",
+      "restart": true,
+      "sourceMaps": true
+    },
+    {
+      "name": "ML Service (Python)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["main:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}/ml-service",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 Launch VYŪHA (Backend + ML)",
+      "configurations": ["Backend (Node.js)", "ML Service (Python)"],
+      "preLaunchTask": "Start Frontend",
+      "stopAll": true
+    }
+  ]
+}

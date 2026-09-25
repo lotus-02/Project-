@@ -1,133 +1,114 @@
 import React from 'react';
-import { Clock, AlertCircle, MessageSquare, User, ArrowRight } from 'lucide-react';
+import { Clock, MessageSquare, User, ArrowRight } from 'lucide-react';
 
 const COLUMNS = [
-  { id: 'TODO', title: 'To Do', color: 'border-slate-700 bg-slate-800/30' },
-  { id: 'IN_PROGRESS', title: 'In Progress', color: 'border-amber-500/30 bg-amber-500/5' },
-  { id: 'IN_REVIEW', title: 'In Review', color: 'border-blue-500/30 bg-blue-500/5' },
-  { id: 'COMPLETED', title: 'Completed', color: 'border-emerald-500/30 bg-emerald-500/5' },
+  { id: 'TODO',        title: 'To Do',       accentColor: '#4a6080', headerBg: 'rgba(74,96,128,0.06)',  border: 'rgba(74,96,128,0.2)' },
+  { id: 'IN_PROGRESS', title: 'In Progress',  accentColor: '#f59e0b', headerBg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.25)' },
+  { id: 'IN_REVIEW',   title: 'In Review',    accentColor: '#0066ff', headerBg: 'rgba(0,102,255,0.06)',  border: 'rgba(0,102,255,0.25)' },
+  { id: 'COMPLETED',   title: 'Completed',    accentColor: '#00d4ff', headerBg: 'rgba(0,212,255,0.06)',  border: 'rgba(0,212,255,0.25)' },
 ];
 
-const PRIORITY_COLORS = {
-  LOW: 'bg-slate-700 text-slate-300',
-  MEDIUM: 'bg-sky-500/20 text-sky-300 border border-sky-500/30',
-  HIGH: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
-  URGENT: 'bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse',
+const PRIORITY_STYLES = {
+  LOW:    { color: '#4a6080', bg: 'rgba(74,96,128,0.12)',  border: 'rgba(74,96,128,0.25)' },
+  MEDIUM: { color: '#00d4ff', bg: 'rgba(0,212,255,0.08)',  border: 'rgba(0,212,255,0.2)' },
+  HIGH:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)' },
+  URGENT: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.3)' },
 };
 
 export default function KanbanBoard({ tasks, onTaskClick, onStatusChange }) {
-  const getNextStatus = (currentStatus) => {
-    switch (currentStatus) {
-      case 'TODO': return 'IN_PROGRESS';
-      case 'IN_PROGRESS': return 'IN_REVIEW';
-      case 'IN_REVIEW': return 'COMPLETED';
-      default: return 'TODO';
-    }
-  };
+  const getNextStatus = (s) => ({ TODO: 'IN_PROGRESS', IN_PROGRESS: 'IN_REVIEW', IN_REVIEW: 'COMPLETED' }[s] || 'TODO');
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {COLUMNS.map((col) => {
-        const colTasks = tasks.filter((t) => t.status === col.id);
-
+        const colTasks = tasks.filter(t => t.status === col.id);
         return (
-          <div
-            key={col.id}
-            className={`flex flex-col rounded-2xl border ${col.color} backdrop-blur-sm p-4 min-h-[500px]`}
-          >
+          <div key={col.id} className="flex flex-col rounded-2xl min-h-[480px]"
+            style={{ background: col.headerBg, border: `1px solid ${col.border}` }}>
             {/* Column Header */}
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/50">
+            <div className="flex items-center justify-between px-4 py-3 border-b"
+              style={{ borderColor: col.border }}>
               <div className="flex items-center space-x-2">
-                <h3 className="font-semibold text-xs tracking-wider uppercase text-slate-200">{col.title}</h3>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-300">
-                  {colTasks.length}
-                </span>
+                <span className="w-2 h-2 rounded-full" style={{ background: col.accentColor, boxShadow: `0 0 6px ${col.accentColor}` }} />
+                <h3 className="font-bold text-xs tracking-wider uppercase" style={{ color: col.accentColor }}>{col.title}</h3>
               </div>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-black"
+                style={{ background: `${col.accentColor}15`, color: col.accentColor }}>
+                {colTasks.length}
+              </span>
             </div>
 
             {/* Task List */}
-            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+            <div className="p-3 space-y-2.5 flex-1 overflow-y-auto">
               {colTasks.length === 0 ? (
-                <div className="h-32 flex items-center justify-center border border-dashed border-slate-800 rounded-xl">
-                  <p className="text-xs text-slate-600">No tasks in {col.title}</p>
+                <div className="h-28 flex items-center justify-center rounded-xl border border-dashed border-[#0d2040]">
+                  <p className="text-[11px] text-[#4a6080]">No tasks</p>
                 </div>
-              ) : (
-                colTasks.map((task) => {
-                  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'COMPLETED';
+              ) : colTasks.map((task) => {
+                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'COMPLETED';
+                const ps = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.MEDIUM;
 
-                  return (
-                    <div
-                      key={task.id}
-                      onClick={() => onTaskClick(task)}
-                      className="group bg-slate-900/90 border border-slate-800 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5 rounded-xl p-3.5 transition cursor-pointer relative"
-                    >
-                      {/* Priority and Project badge */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.MEDIUM}`}>
-                          {task.priority}
-                        </span>
-                        {task.project?.name && (
-                          <span className="text-[10px] font-medium text-slate-400 truncate max-w-[120px]">
-                            {task.project.name}
+                return (
+                  <div key={task.id} onClick={() => onTaskClick(task)}
+                    className="group rounded-xl p-3.5 cursor-pointer transition-all duration-150 border border-[#0d2040] hover:border-[#00d4ff30]"
+                    style={{ background: '#080c16' }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 16px rgba(0,212,255,0.06)'}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                        style={{ color: ps.color, background: ps.bg, border: `1px solid ${ps.border}` }}>
+                        {task.priority}
+                      </span>
+                      {task.project?.name && (
+                        <span className="text-[10px] text-[#4a6080] truncate max-w-[100px]">{task.project.name}</span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs font-semibold text-[#e8f4ff] group-hover:text-[#00d4ff] transition line-clamp-2 mb-1.5">{task.title}</h4>
+                    {task.description && (
+                      <p className="text-[11px] text-[#4a6080] line-clamp-2 mb-2.5">{task.description}</p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#0d2040] text-[10px] text-[#4a6080]">
+                      <div className="flex items-center space-x-2.5">
+                        {task.dueDate && (
+                          <span className={`flex items-center space-x-1 ${isOverdue ? 'font-bold' : ''}`}
+                            style={{ color: isOverdue ? '#ef4444' : '#4a6080' }}>
+                            <Clock className="w-3 h-3" />
+                            <span>{new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                          </span>
+                        )}
+                        {task._count?.comments > 0 && (
+                          <span className="flex items-center space-x-1">
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{task._count.comments}</span>
                           </span>
                         )}
                       </div>
-
-                      {/* Title & Description */}
-                      <h4 className="text-xs font-semibold text-slate-200 group-hover:text-emerald-400 transition line-clamp-2 mb-1.5">
-                        {task.title}
-                      </h4>
-                      {task.description && (
-                        <p className="text-[11px] text-slate-400 line-clamp-2 mb-3">
-                          {task.description}
-                        </p>
-                      )}
-
-                      {/* Footer: Due date & Assignee & Quick move button */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
-                        <div className="flex items-center space-x-3">
-                          {task.dueDate && (
-                            <span className={`flex items-center space-x-1 ${isOverdue ? 'text-red-400 font-semibold' : 'text-slate-400'}`}>
-                              <Clock className="w-3 h-3" />
-                              <span>{new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                            </span>
-                          )}
-                          {task._count?.comments > 0 && (
-                            <span className="flex items-center space-x-1 text-slate-400">
-                              <MessageSquare className="w-3 h-3" />
-                              <span>{task._count.comments}</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {task.assignee ? (
-                            <div className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[9px] text-slate-300 font-bold" title={task.assignee.name}>
-                              {task.assignee.name.charAt(0).toUpperCase()}
-                            </div>
-                          ) : (
-                            <User className="w-3.5 h-3.5 text-slate-600" />
-                          )}
-
-                          {/* Quick advance status */}
-                          {task.status !== 'COMPLETED' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onStatusChange(task.id, getNextStatus(task.status));
-                              }}
-                              title={`Advance to ${getNextStatus(task.status)}`}
-                              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-emerald-400 rounded transition"
-                            >
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex items-center space-x-2">
+                        {task.assignee ? (
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black"
+                            style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
+                            title={task.assignee.name}>
+                            {task.assignee.name.charAt(0).toUpperCase()}
+                          </div>
+                        ) : (
+                          <User className="w-3.5 h-3.5 text-[#0d2040]" />
+                        )}
+                        {task.status !== 'COMPLETED' && (
+                          <button onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, getNextStatus(task.status)); }}
+                            title={`Advance to ${getNextStatus(task.status)}`}
+                            className="p-1 rounded transition text-[#4a6080] hover:text-[#00d4ff]"
+                            style={{}} >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

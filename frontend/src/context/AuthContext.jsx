@@ -59,6 +59,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const joinOrganization = async (formData) => {
+    const res = await api.post('/auth/join-organization', formData);
+    if (res.data.success) {
+      const { user, accessToken, refreshToken } = res.data.data;
+      if (accessToken) {
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('user', JSON.stringify(user));
+        setUser(user);
+        initSocket(accessToken);
+      }
+      return res.data;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
@@ -68,7 +83,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, registerOrganization, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, registerOrganization, joinOrganization, logout }}>
       {children}
     </AuthContext.Provider>
   );

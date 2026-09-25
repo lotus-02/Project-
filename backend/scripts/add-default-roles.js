@@ -9,7 +9,7 @@ const ROLES = [
   {
     name: 'MANAGER',
     description: 'Manage projects, tasks and view team',
-    perms: ['project:create','project:read','project:update','task:create','task:read','task:update','task:delete','user:read','analytics:read']
+    perms: ['project:create','project:read','project:update','task:create','task:read','task:update','task:delete','user:read','user:manage','analytics:read']
   },
   {
     name: 'MEMBER',

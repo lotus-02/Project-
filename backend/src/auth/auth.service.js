@@ -51,7 +51,7 @@ const registerOrganization = async ({
                 perms: [
                     "project:create", "project:read", "project:update",
                     "task:create", "task:read", "task:update", "task:delete",
-                    "user:read", "analytics:read"
+                    "user:read", "user:manage", "analytics:read"
                 ]
             },
             {

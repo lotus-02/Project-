@@ -105,7 +105,10 @@ router.delete(
                 message: "User deleted successfully"
             });
         } catch (error) {
-            next(error);
+            res.status(400).json({
+                success: false,
+                message: error.message || "Failed to delete user"
+            });
         }
     }
 );

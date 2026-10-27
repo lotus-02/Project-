@@ -12,13 +12,15 @@ const startServer = async () => {
     try {
         await ensureDatabaseRunning();
 
-        try {
-            // Push schema tables to database if needed
-            console.log("Synchronizing schema tables with PostgreSQL...");
-            execSync("npx prisma db push", { stdio: "pipe" });
-            console.log("Database schema synchronized successfully!");
-        } catch (dbSyncErr) {
-            console.warn("Schema sync notice:", dbSyncErr.message);
+        // Only run synchronous db push in local development to avoid 10-15s cold start delay on Render
+        if (process.env.NODE_ENV !== "production") {
+            try {
+                console.log("Synchronizing schema tables with PostgreSQL...");
+                execSync("npx prisma db push", { stdio: "pipe" });
+                console.log("Database schema synchronized successfully!");
+            } catch (dbSyncErr) {
+                console.warn("Schema sync notice:", dbSyncErr.message);
+            }
         }
 
         await prisma.$connect();

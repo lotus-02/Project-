@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Mail, ArrowRight, Building2, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Building2, ShieldCheck, Clock } from 'lucide-react';
 import api from '../services/api';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
@@ -18,6 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [slowServerWarning, setSlowServerWarning] = useState(false);
   const [preview,  setPreview]  = useState(null); // { orgName, role, user, accessToken, refreshToken }
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
@@ -27,14 +28,24 @@ export default function Login() {
   // Step 1 — validate credentials, get org+role preview
   const handleCredentials = async (e) => {
     e.preventDefault();
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
+    setSlowServerWarning(false);
+    
+    // If request takes longer than 3.5s, it means Render is waking up from cold sleep
+    const wakeTimer = setTimeout(() => {
+      setSlowServerWarning(true);
+    }, 3500);
+
     try {
       await login(email, password);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {
+      clearTimeout(wakeTimer);
       setLoading(false);
+      setSlowServerWarning(false);
     }
   };
 
@@ -66,6 +77,13 @@ export default function Login() {
             <div className="mb-5 p-3 rounded-xl border text-xs text-red-400"
               style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.25)' }}>
               {error}
+            </div>
+          )}
+
+          {slowServerWarning && loading && (
+            <div className="mb-5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-center space-x-2 animate-pulse">
+              <Clock className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>Waking up free-tier cloud backend (Render cold start)... Please wait a few moments.</span>
             </div>
           )}
 
@@ -117,7 +135,7 @@ export default function Login() {
 
             <button type="submit" disabled={loading}
               className="btn-vyuha w-full flex justify-center items-center space-x-2 py-2.5 px-4 rounded-xl text-xs">
-              <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
+              <span>{loading ? (slowServerWarning ? 'Waking server...' : 'Authenticating...') : 'Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

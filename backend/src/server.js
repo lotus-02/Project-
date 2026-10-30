@@ -1,6 +1,5 @@
 require("dotenv").config();
 const http = require("http");
-const { execSync } = require("child_process");
 const app = require("./app");
 const prisma = require("./config/prisma");
 const { initSocket } = require("./socket");
@@ -11,20 +10,21 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     try {
         await ensureDatabaseRunning();
-
-        // Only run synchronous db push in local development to avoid 10-15s cold start delay on Render
-        if (process.env.NODE_ENV !== "production") {
-            try {
-                console.log("Synchronizing schema tables with PostgreSQL...");
-                execSync("npx prisma db push", { stdio: "pipe" });
-                console.log("Database schema synchronized successfully!");
-            } catch (dbSyncErr) {
-                console.warn("Schema sync notice:", dbSyncErr.message);
-            }
-        }
-
         await prisma.$connect();
         console.log("PostgreSQL connected successfully via Prisma");
+
+        // Ensure User table schema has latest verification & OTP columns
+        try {
+            await prisma.$executeRawUnsafe(`
+                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isEmailVerified" BOOLEAN NOT NULL DEFAULT false;
+                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtp" TEXT;
+                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtpExpires" TIMESTAMP(3);
+                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtp" TEXT;
+                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtpExpires" TIMESTAMP(3);
+            `);
+        } catch (colErr) {
+            console.warn("Notice checking User columns:", colErr.message);
+        }
 
         // Auto-seed basic permissions if database is empty
         try {

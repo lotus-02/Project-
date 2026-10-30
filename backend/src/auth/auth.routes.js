@@ -63,7 +63,8 @@ router.get("/tenants-preview", async (req, res) => {
         });
         res.json({ success: true, data: tenants });
     } catch (err) {
-        res.json({ success: false, data: [] });
+        console.error("tenants-preview error:", err.message);
+        res.json({ success: false, error: err.message, data: [] });
     }
 });
 

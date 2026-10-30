@@ -15,13 +15,12 @@ const startServer = async () => {
 
         // Ensure User table schema has latest verification & OTP columns
         try {
-            await prisma.$executeRawUnsafe(`
-                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isEmailVerified" BOOLEAN NOT NULL DEFAULT false;
-                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtp" TEXT;
-                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtpExpires" TIMESTAMP(3);
-                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtp" TEXT;
-                ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtpExpires" TIMESTAMP(3);
-            `);
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isEmailVerified" BOOLEAN NOT NULL DEFAULT false;`);
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtp" TEXT;`);
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOtpExpires" TIMESTAMP(3);`);
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtp" TEXT;`);
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordResetOtpExpires" TIMESTAMP(3);`);
+            console.log("Verified User schema columns exist");
         } catch (colErr) {
             console.warn("Notice checking User columns:", colErr.message);
         }
